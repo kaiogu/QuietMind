@@ -3,8 +3,10 @@ package ragone.io.quietmind;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.os.Build;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -16,11 +18,11 @@ import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Looper;
-import android.support.design.widget.CoordinatorLayout;
-import android.support.v4.app.NotificationCompat;
-import android.support.v7.app.AlertDialog;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.SwitchCompat;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.core.app.NotificationCompat;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -56,6 +58,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private static final String INTERVAL_PREF = "interval";
     private static final String MY_PREF = "my_prefs";
+    private static final String NOTIFICATION_CHANNEL_ID = "meditation_channel";
     private static final String VIPASSANA = "vipassana";
     private static final String FIRST_TIME = "first_time";
     private static final String SESSION_NUM = "session_num";
@@ -101,6 +104,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        createNotificationChannel();
 
         mainLayout = (LinearLayout) findViewById(R.id.main_layout);
         coordinatorLayout = (CoordinatorLayout) findViewById(R.id.coordinatorLayout);
@@ -385,6 +390,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    NOTIFICATION_CHANNEL_ID,
+                    "Meditation Timer",
+                    NotificationManager.IMPORTANCE_LOW
+            );
+            channel.setDescription("Shows meditation session progress");
+            NotificationManager nm = getSystemService(NotificationManager.class);
+            nm.createNotificationChannel(channel);
+        }
+    }
+
     private void setupNotification() {
         Intent intent = new Intent(this, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -393,10 +411,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         this,
                         1,
                         intent,
-                        PendingIntent.FLAG_UPDATE_CURRENT
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
                 );
         mBuilder =
-                new NotificationCompat.Builder(this)
+                new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
                         .setSmallIcon(R.drawable.notification_icon)
                         .setContentTitle("Meditation in progress")
                         .setContentText("Time left: " + wheelView.getSelectedPosition() + 1)
