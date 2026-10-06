@@ -8,4 +8,12 @@
         <attr name="color_unchecked" format="color"/>
         <attr name="color_unchecked_stroke" format="color"/>
     </declare-styleable>
+
+    <declare-styleable name="WheelView">
+        <attr name="wvHighlightColor" format="color"/>
+        <attr name="wvMarkColor" format="color"/>
+        <attr name="wvTextColor" format="color"/>
+        <attr name="wvItemSpacing" format="dimension"/>
+        <attr name="wvMarkRatio" format="float"/>
+    </declare-styleable>
 </resources>

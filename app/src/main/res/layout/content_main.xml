@@ -17,6 +17,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:id="@+id/main_imageView_logo"
+            android:importantForAccessibility="no"
             android:src="@drawable/logo"
             android:paddingBottom="20dp"
             android:paddingTop="20dp">
@@ -26,6 +27,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:id="@+id/main_imageView_logo_text"
+            android:contentDescription="@string/app_name"
             android:paddingBottom="20dp"
             android:src="@drawable/logo_text">
         </ImageView>
@@ -83,6 +85,7 @@
                 android:layout_gravity="left"/>
 
             <ImageView android:id="@+id/stats_button"
+                       android:contentDescription="@string/stats"
                        android:layout_width="wrap_content"
                        android:layout_height="wrap_content"
                        android:layout_gravity="right"
@@ -95,14 +98,15 @@
 
         </FrameLayout>
 
-        <com.lantouzi.wheelview.WheelView android:id="@+id/wheel"
-            android:layout_width="wrap_content"
+        <ragone.io.quietmind.WheelView android:id="@+id/wheel"
+            android:layout_width="match_parent"
             android:background="@color/white"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
-            app:lwvHighlightColor="@color/float_color"
-            app:lwvIntervalFactor="3"
-            app:lwvMarkRatio="0.5"/>
+            android:paddingTop="2dp"
+            android:contentDescription="@string/wheel_description"
+            app:wvHighlightColor="@color/float_color"
+            app:wvMarkRatio="0.5"/>
 
 
         <FrameLayout
@@ -127,7 +131,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Vipassanā Mode"
+                    android:text="@string/vipassana_mode"
                     android:layout_marginLeft="@dimen/activity_horizontal_margin"
                     android:textColor="@color/white"/>
 
@@ -141,19 +145,19 @@
                     android:layout_marginRight="@dimen/activity_horizontal_margin"
                     style="?android:attr/borderlessButtonStyle"
                     android:textColor="@color/white"
-                    android:text="Set Interval"/>
+                    android:text="@string/set_interval"/>
         </FrameLayout>
 
 
         <TextView android:id="@+id/bigText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Take a deep breath"
+            android:text="@string/take_a_deep_breath"
             android:textColor="@color/white"
             android:layout_gravity="center_horizontal"
                   android:layout_marginTop="40dp"
                   android:fontFamily="sans-serif-thin"
-            android:textSize="30dp"/>
+            android:textSize="30sp"/>
 
     </LinearLayout>
 

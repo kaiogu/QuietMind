@@ -42,7 +42,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                       android:fontFamily="sans-serif-light"
-                android:textSize="20dp"
+                android:textSize="20sp"
                 android:layout_gravity="center"
                 android:textColor="@color/white"
                 android:text="2 days"/>
@@ -71,7 +71,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                       android:fontFamily="sans-serif-light"
-                android:textSize="20dp"
+                android:textSize="20sp"
                 android:textColor="@color/white"
                 android:text="12 days"/>
 
@@ -99,7 +99,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                       android:fontFamily="sans-serif-light"
-                android:textSize="20dp"
+                android:textSize="20sp"
                 android:textColor="@color/white"
                 android:text="7.5 hours"/>
 
@@ -127,7 +127,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                       android:fontFamily="sans-serif-light"
-                android:textSize="20dp"
+                android:textSize="20sp"
                 android:textColor="@color/white"
                 android:text="15 min"/>
 

@@ -42,6 +42,7 @@ import android.widget.Checkable;
 
 public class SmoothCheckBox extends View implements Checkable {
     private static final String KEY_INSTANCE_STATE = "InstanceState";
+    private static final String KEY_CHECKED = "checked";
     private static final int COLOR_TICK      = Color.WHITE;
     private static final int COLOR_UNCHECKED = Color.parseColor("#252F38");
     private static final int COLOR_CHECKED   = Color.parseColor("#28A69A");
@@ -145,7 +146,7 @@ public class SmoothCheckBox extends View implements Checkable {
     protected Parcelable onSaveInstanceState() {
         Bundle bundle = new Bundle();
         bundle.putParcelable(KEY_INSTANCE_STATE, super.onSaveInstanceState());
-        bundle.putBoolean(KEY_INSTANCE_STATE, isChecked());
+        bundle.putBoolean(KEY_CHECKED, isChecked());
         return bundle;
     }
 
@@ -153,7 +154,7 @@ public class SmoothCheckBox extends View implements Checkable {
     protected void onRestoreInstanceState(Parcelable state) {
         if (state instanceof Bundle) {
             Bundle bundle = (Bundle) state;
-            boolean isChecked = bundle.getBoolean(KEY_INSTANCE_STATE);
+            boolean isChecked = bundle.getBoolean(KEY_CHECKED);
             setChecked(isChecked);
             super.onRestoreInstanceState(bundle.getParcelable(KEY_INSTANCE_STATE));
             return;

@@ -1,453 +1,416 @@
 package ragone.io.quietmind;
 
-import android.app.Activity;
-import android.app.ActivityManager;
-import android.app.Notification;
+import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.content.Context;
-import android.content.DialogInterface;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.graphics.Color;
-import android.media.AudioManager;
-import android.media.MediaPlayer;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Looper;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
-import androidx.core.app.NotificationCompat;
-import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.SwitchCompat;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
 import android.view.animation.ScaleAnimation;
 import android.widget.Button;
-import android.widget.CompoundButton;
-import android.widget.DatePicker;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.NumberPicker;
 import android.widget.TextView;
-import android.widget.TimePicker;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
+import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 import com.github.amlcurran.showcaseview.ShowcaseView;
 import com.github.amlcurran.showcaseview.targets.Target;
 import com.github.amlcurran.showcaseview.targets.ViewTarget;
-import com.lantouzi.wheelview.WheelView;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import cn.pedant.SweetAlert.SweetAlertDialog;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
+    private static final String TAG = "MainActivity";
     private static final String NOTIFICATION_CHANNEL = "meditation";
-    private static final String INTERVAL_PREF = "interval";
-    private static final String MY_PREF = "my_prefs";
-    private static final String VIPASSANA = "vipassana";
-    private static final String FIRST_TIME = "first_time";
-    private static final String SESSION_NUM = "session_num";
-    private final String LONGEST_STREAK = "longeststreak";
-    private final String TOTAL_TIME = "totaltime";
-    private final String AVERAGE_TIME = "averagetime";
-    private final String STREAK = "streak";
-    private final String TIME = "time";
-    private final String LAST_DAY = "lastday";
+    private static final int NOTIFICATION_ID = 1;
+    private static final int MAX_MINUTES = 90;
+    private static final int MAX_INTERVAL_MINUTES = 20;
+    /** Vipassanā sessions are a fixed 60 minutes (wheel index 59). */
+    private static final int VIPASSANA_INDEX = 59;
+    /** The closing chant is this long, so it starts this far before the end of the session. */
+    private static final long VIPASSANA_END_LEAD_MS = 809_400L;
+    private static final long MINUTE_MS = 60_000L;
+    private static final int END_BELL_STRIKES = 3;
+    private static final float SESSION_BRIGHTNESS = 0.2f;
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private Prefs prefs;
+    private SoundPlayer sounds;
+    private RingerController ringer;
+    private NotificationManager notificationManager;
+    private NotificationCompat.Builder notificationBuilder;
+    private ActivityResultLauncher<String> notificationPermissionLauncher;
+
     private WheelView wheelView;
-    private CountDownTimer timer;
-    private int selectedIndex;
-    private List<SmoothCheckBox> days;
-    private String lastDay;
-    private int count = 0;
-    private CoordinatorLayout coordinatorLayout;
-    private MediaPlayer bell1Player;
-    private MediaPlayer bell2Player;
-    private MediaPlayer vipassanaStartPlayer;
-    private MediaPlayer vipassanaEndPlayer;
-    private int streak;
     private PlayPauseView playPauseView;
     private LinearLayout dayLayout;
     private SwitchCompat vipassanaMode;
     private TextView bigText;
-    private ShowcaseView scv;
-    private int counter = 0;
-    private MyDrawer myDrawer;
-    private boolean firstTime;
-    private NotificationCompat.Builder mBuilder;
-    private NotificationManager notificationManager;
-    private LinearLayout mainLayout;
     private ImageView statsBtn;
-    private ImageView exitBtn;
-    private int ringer = 0;
-    private AudioManager audio;
-    private float brightness;
     private ImageView helpBtn;
-    private boolean intervalOn = false;
     private Button intervalBtn;
+    private ShowcaseView scv;
+    private final List<SmoothCheckBox> days = new ArrayList<>();
+
+    private CountDownTimer timer;
+    private boolean sessionRunning;
+    private long sessionMs;
+    private long lastRemainingMs;
+    private boolean vipassanaEndStarted;
+    /** Optional raw resources for the Vipassanā chants; 0 when they aren't bundled. */
+    private int vipassanaStartSound;
+    private int vipassanaEndSound;
+
+    /** Wheel index of the chosen session length (index + 1 minutes). */
+    private int selectedIndex;
+    private int streak;
+    private int counter = 0;
+    private boolean firstTime;
+    private float brightness;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        mainLayout = (LinearLayout) findViewById(R.id.main_layout);
-        coordinatorLayout = (CoordinatorLayout) findViewById(R.id.coordinatorLayout);
-        bigText = (TextView) findViewById(R.id.bigText);
-        bigText.setVisibility(View.INVISIBLE);
-        vipassanaMode = (SwitchCompat) findViewById(R.id.vipassanaMode);
-        if(getVipassanaSelected()) {
-            vipassanaMode.setChecked(true);
-        }
-        vipassanaMode.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if (isChecked) {
-                    wheelView.smoothSelectIndex(59);
-//                    wheelView.setEnabled(false);
+        prefs = new Prefs(this);
+        sounds = new SoundPlayer(this);
+        ringer = new RingerController(this);
+        notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        notificationPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(), granted -> startSession());
+        createNotificationChannel();
+        vipassanaStartSound = findRawResource("vipassanastart");
+        vipassanaEndSound = findRawResource("vipassanaend");
+        firstTime = prefs.isFirstTime();
 
-                } else {
-//                    wheelView.smoothSelectIndex(selectedIndex);
-//                    wheelView.setEnabled(true);
-                }
-                saveData();
+        bigText = findViewById(R.id.bigText);
+        bigText.setVisibility(View.INVISIBLE);
+        wheelView = findViewById(R.id.wheel);
+        playPauseView = findViewById(R.id.play_pause_view);
+        vipassanaMode = findViewById(R.id.vipassanaMode);
+        vipassanaMode.setChecked(prefs.isVipassana());
+        vipassanaMode.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                selectedIndex = VIPASSANA_INDEX;
+                wheelView.smoothSelectIndex(VIPASSANA_INDEX);
             }
+            saveData();
         });
-        wheelView = (WheelView) findViewById(R.id.wheel);
-        playPauseView = (PlayPauseView) findViewById(R.id.play_pause_view);
 
         setupDays();
-
         setupPlayPauseButton();
         setupWheel();
 
-
-        if (isFirstTime()) {
+        if (firstTime) {
             showShowcase();
         }
 
-        statsBtn = (ImageView) findViewById(R.id.stats_button);
-        statsBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(MainActivity.this, StatsActivity.class);
-                startActivity(intent);
-            }
-        });
+        statsBtn = findViewById(R.id.stats_button);
+        statsBtn.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, StatsActivity.class)));
 
-        helpBtn = (ImageView) findViewById(R.id.help_button);
-        helpBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showShowcase();
-            }
-        });
+        helpBtn = findViewById(R.id.help_button);
+        helpBtn.setOnClickListener(v -> showShowcase());
 
-        intervalBtn = (Button) findViewById(R.id.interval);
-        intervalBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                final NumberPicker picker = new NumberPicker(MainActivity.this);
-                String[] list = new String[21];
-                for(int i = 0; i <= 20; i++) {
-                    if(i == 0) {
-                        list[i] = "Disabled";
-                    } else {
-                        list[i] = i + " min.";
-                    }
-                }
-                picker.setMaxValue(20);
-                picker.setMinValue(0);
+        intervalBtn = findViewById(R.id.interval);
+        intervalBtn.setOnClickListener(v -> showIntervalPicker());
+    }
 
-                picker.setDisplayedValues(list);
-                int interval = getInterval();
-                picker.setValue(interval);
+    private void showIntervalPicker() {
+        final NumberPicker picker = new NumberPicker(this);
+        String[] labels = new String[MAX_INTERVAL_MINUTES + 1];
+        labels[0] = getString(R.string.interval_disabled);
+        for (int i = 1; i <= MAX_INTERVAL_MINUTES; i++) {
+            labels[i] = getString(R.string.interval_minutes, i);
+        }
+        picker.setMinValue(0);
+        picker.setMaxValue(MAX_INTERVAL_MINUTES);
+        picker.setDisplayedValues(labels);
+        picker.setValue(prefs.getIntervalMinutes());
+        picker.setDescendantFocusability(NumberPicker.FOCUS_BLOCK_DESCENDANTS);
 
-                picker.setDescendantFocusability(NumberPicker.FOCUS_BLOCK_DESCENDANTS);
-
-                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-                builder.setTitle("Set Interval of Bells")
-                        .setView(picker)
-                        .setPositiveButton("Set", new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                SharedPreferences.Editor editor = getSharedPreferences(MY_PREF, MODE_PRIVATE).edit();
-                                editor.putInt(INTERVAL_PREF, picker.getValue());
-                                editor.commit();
-                                dialog.dismiss();
-                            }
-                        })
-                .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        dialog.dismiss();
-                    }
-                })
-
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.interval_title)
+                .setView(picker)
+                .setPositiveButton(R.string.set, (dialog, which) -> prefs.setIntervalMinutes(picker.getValue()))
+                .setNegativeButton(R.string.cancel, null)
                 .show();
-            }
-        });
     }
-
-    private int getInterval() {
-        SharedPreferences prefs = getSharedPreferences(MY_PREF, MODE_PRIVATE);
-        return prefs.getInt(INTERVAL_PREF, 0);
-    }
-
-
-    private boolean isFirstTime() {
-        SharedPreferences prefs = getSharedPreferences(MY_PREF, MODE_PRIVATE);
-        return prefs.getBoolean(FIRST_TIME, true);
-    }
-
 
     private void showShowcase() {
-
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                Looper.prepare();
-                Handler handler = new Handler();
-                for (int i = 1; i <= days.size(); i++) {
-                    final int finalI = i;
-                    handler.postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            if(counter == 0 && isFirstTime()) {
-                                days.get(finalI - 1).setChecked(true, true);
-                            }
-                        }
-                    }, 1000 * i);
+        // Demonstrate a streak by ticking the day circles one by one (first run only).
+        for (int i = 0; i < days.size(); i++) {
+            final SmoothCheckBox day = days.get(i);
+            mainHandler.postDelayed(() -> {
+                if (counter == 0 && firstTime && !isFinishing()) {
+                    day.setChecked(true, true);
                 }
-                Looper.loop();
-            }
-        }).start();
+            }, 1000L * (i + 1));
+        }
 
         ViewTarget target = new ViewTarget(R.id.dayLayout, this);
-        myDrawer = new MyDrawer(getResources(), MainActivity.this, days);
+        MyDrawer myDrawer = new MyDrawer(getResources(), this, days);
 
         scv = new ShowcaseView.Builder(this)
                 .setTarget(target)
                 .setStyle(R.style.MyTheme)
-                .setContentTitle("Streaks!")
-                .setContentText("Keep track of how many days in a row you have meditated.")
+                .setContentTitle(getString(R.string.showcase_streaks_title))
+                .setContentText(getString(R.string.showcase_streaks_text))
                 .setOnClickListener(this)
                 .blockAllTouches()
                 .setShowcaseDrawer(myDrawer)
                 .build();
     }
 
+    /** Advances the showcase tour. */
     @Override
     public void onClick(View v) {
         switch (counter) {
             case 0:
-                ViewTarget target2 = new ViewTarget(R.id.vipassanaMode, this);
-                scv.setTarget(target2);
-                scv.setContentTitle("Vipassanā Mode!");
-                scv.setContentText("Fixed 60 minutes meditation by S. N. Goenka. Sadhu! Sadhu! Sadhu!");
+                scv.setTarget(new ViewTarget(R.id.vipassanaMode, this));
+                scv.setContentTitle(getString(R.string.showcase_vipassana_title));
+                scv.setContentText(getString(R.string.showcase_vipassana_text));
 
-                Handler handler = new Handler();
-                for (int i = 1; i<=days.size() ;i++) {
-                    final int finalI = i;
-                    handler.postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            SmoothCheckBox checkBox = days.get(finalI - 1);
-                            if (checkBox.isChecked() && isFirstTime()) {
-                                checkBox.setChecked(false, true);
-                            }
+                // Undo the streak demonstration.
+                for (int i = 0; i < days.size(); i++) {
+                    final SmoothCheckBox day = days.get(i);
+                    mainHandler.postDelayed(() -> {
+                        if (day.isChecked() && firstTime) {
+                            day.setChecked(false, true);
                         }
-                    }, 100 * i);
+                    }, 100L * (i + 1));
                 }
                 updateDays();
                 break;
             case 1:
-                ViewTarget target = new ViewTarget(R.id.stats_button, this);
-                scv.setTarget(target);
-                scv.setContentTitle("Stages of Meditation!");
-                scv.setContentText("Ten stages to help you figure out where you are and how best to continue.");
+                scv.setTarget(new ViewTarget(R.id.stats_button, this));
+                scv.setContentTitle(getString(R.string.showcase_stages_title));
+                scv.setContentText(getString(R.string.showcase_stages_text));
                 break;
             case 2:
-                ViewTarget target4 = new ViewTarget(R.id.interval, this);
-                scv.setTarget(target4);
-                scv.setContentTitle("Set an Interval!");
-                scv.setContentText("Be reminded to focus on your breathing by playing bells during your session.");
+                scv.setTarget(new ViewTarget(R.id.interval, this));
+                scv.setContentTitle(getString(R.string.showcase_interval_title));
+                scv.setContentText(getString(R.string.showcase_interval_text));
                 break;
             case 3:
                 scv.setTarget(Target.NONE);
-                scv.setContentTitle("How to Meditate?");
+                scv.setContentTitle(getString(R.string.showcase_howto_title));
                 scv.setStyle(R.style.MyTheme2);
                 scv.setShouldCentreText(true);
-                scv.setContentText("1. Set the timer.\n2. Press play.\n3. Take a deep breath.\n4. Relax.\n5. Focus on your breathing.");
+                scv.setContentText(getString(R.string.showcase_howto_text));
                 break;
             case 4:
                 scv.hide();
                 firstTime = false;
                 saveData();
                 break;
+            default:
+                break;
         }
-        counter++;
-        if(counter == 5) {
-            counter = 0;
-        }
+        counter = (counter + 1) % 5;
     }
 
     private void setScreenDim(float value) {
-        WindowManager.LayoutParams WMLP = getWindow().getAttributes();
-        WMLP.screenBrightness = value;
-        getWindow().setAttributes(WMLP);
+        WindowManager.LayoutParams params = getWindow().getAttributes();
+        params.screenBrightness = value;
+        getWindow().setAttributes(params);
     }
 
     private float getScreenDim() {
-        WindowManager.LayoutParams WMLP = getWindow().getAttributes();
-        return WMLP.screenBrightness;
+        return getWindow().getAttributes().screenBrightness;
     }
 
-
     private void setupPlayPauseButton() {
+        // The drawable starts as "pause"; flip it to "play" for the idle state.
         playPauseView.toggle();
-        playPauseView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                playPauseView.toggle();
-                audio = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
-                if (playPauseView.getDrawable().isPlay()) {
-                    brightness = getScreenDim();
-                    setScreenDim(0.2f);
-                    ringer = audio.getRingerMode();
-                    audio.setRingerMode(0);
-                    setInputFieldEnabled(false);
-                    showSnackBar();
-                    if (vipassanaMode.isChecked()) {
-                        vipassanaStartPlayer = MediaPlayer.create(MainActivity.this, R.raw.vipassanastart);
-                        vipassanaStartPlayer.start();
-                    } else {
-                        bell2Player = MediaPlayer.create(MainActivity.this, R.raw.bell2);
-                        bell2Player.start();
-                    }
-                    selectedIndex = wheelView.getSelectedPosition();
-                    timer = new myCountDownTimer((selectedIndex + 1) * 60000, 1000).start();
-                    setupNotification();
-                } else {
-                    setScreenDim(brightness);
-                    audio.setRingerMode(ringer);
-                    timer.cancel();
-                    stopPlayers();
-                    setInputFieldEnabled(true);
-                    wheelView.smoothSelectIndex(selectedIndex);
-                    removeNotification();
-                }
+        playPauseView.setOnClickListener(v -> {
+            if (sessionRunning) {
+                stopSession();
+            } else {
+                requestStartSession();
             }
         });
     }
 
-    private void stopPlayers() {
-        if(vipassanaStartPlayer != null) {
-            vipassanaStartPlayer.stop();
-            vipassanaStartPlayer.release();
-            vipassanaStartPlayer = null;
+    /** Asks once for Do Not Disturb access and for notification permission, then starts. */
+    private void requestStartSession() {
+        if (!prefs.wasDndPrompted() && ringer.needsDndAccess()) {
+            prefs.setDndPrompted();
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.dnd_title)
+                    .setMessage(R.string.dnd_message)
+                    .setPositiveButton(R.string.dnd_open_settings, (dialog, which) -> openDndSettings())
+                    .setNegativeButton(R.string.dnd_not_now, (dialog, which) -> requestStartSession())
+                    .show();
+            return;
         }
-
-        if(vipassanaEndPlayer != null) {
-            vipassanaEndPlayer.stop();
-            vipassanaEndPlayer.release();
-            vipassanaEndPlayer = null;
+        if (needsNotificationPermission()) {
+            // The session starts from the permission callback, whatever the answer.
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+            return;
         }
+        startSession();
+    }
 
-        if(bell1Player != null) {
-            bell1Player.stop();
-            bell1Player.release();
-            bell1Player = null;
-        }
-
-        if(bell2Player != null) {
-            bell2Player.stop();
-            bell2Player.release();
-            bell2Player = null;
+    private void openDndSettings() {
+        try {
+            startActivity(new Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS));
+        } catch (ActivityNotFoundException e) {
+            Log.w(TAG, "No Do Not Disturb settings screen", e);
+            requestStartSession();
         }
     }
 
-    private void removeNotification() {
-        if(notificationManager != null) {
-            notificationManager.cancelAll();
+    private boolean needsNotificationPermission() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void startSession() {
+        if (sessionRunning || isFinishing()) {
+            return;
+        }
+        sessionRunning = true;
+        playPauseView.toggle();
+        brightness = getScreenDim();
+        setScreenDim(SESSION_BRIGHTNESS);
+        ringer.silence();
+        setInputFieldEnabled(false);
+        showSnackBar();
+
+        sessionMs = (selectedIndex + 1) * MINUTE_MS;
+        lastRemainingMs = sessionMs;
+        vipassanaEndStarted = false;
+        boolean chantPlayed = vipassanaMode.isChecked() && vipassanaStartSound != 0
+                && sounds.play(vipassanaStartSound, 1);
+        if (!chantPlayed) {
+            sounds.play(R.raw.bell2, 1);
+        }
+        setupNotification();
+        timer = new SessionTimer(sessionMs).start();
+    }
+
+    /** The user stopped the session early. */
+    private void stopSession() {
+        sessionRunning = false;
+        playPauseView.toggle();
+        timer.cancel();
+        sounds.stopAll();
+        restoreAfterSession();
+    }
+
+    private void restoreAfterSession() {
+        setScreenDim(brightness);
+        ringer.restore();
+        setInputFieldEnabled(true);
+        wheelView.smoothSelectIndex(selectedIndex);
+        removeNotification();
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL,
+                    getString(R.string.notification_channel_name), NotificationManager.IMPORTANCE_LOW);
+            channel.setDescription(getString(R.string.notification_channel_description));
+            notificationManager.createNotificationChannel(channel);
         }
     }
 
     private void setupNotification() {
         Intent intent = new Intent(this, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent resultPendingIntent =
-                PendingIntent.getActivity(
-                        this,
-                        1,
-                        intent,
-                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                );
-        notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            notificationManager.createNotificationChannel(new NotificationChannel(
-                    NOTIFICATION_CHANNEL, "Meditation", NotificationManager.IMPORTANCE_LOW));
+        PendingIntent contentIntent = PendingIntent.getActivity(this, 1, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL)
+                .setSmallIcon(R.drawable.notification_icon)
+                .setContentTitle(getString(R.string.notification_title))
+                .setContentText(getString(R.string.notification_time_left, TimerFormatter.formatMillis(sessionMs)))
+                .setColor(ContextCompat.getColor(this, R.color.float_color))
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setShowWhen(false)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setContentIntent(contentIntent);
+        postNotification();
+    }
+
+    private void postNotification() {
+        if (notificationBuilder == null) {
+            return;
         }
-        mBuilder =
-                new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL)
-                        .setSmallIcon(R.drawable.notification_icon)
-                        .setContentTitle("Meditation in progress")
-                        .setContentText("Time left: " + wheelView.getSelectedPosition() + 1)
-                        .setColor(getResources().getColor(R.color.float_color))
-                        .setOngoing(true)
-                        .setShowWhen(false)
-                        .setPriority(Notification.PRIORITY_HIGH)
-                        .setContentIntent(resultPendingIntent);
-        Notification notification = mBuilder.build();
-        notificationManager.notify(001, notification);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                || ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) {
+            notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
+        }
+    }
+
+    private void removeNotification() {
+        notificationBuilder = null;
+        notificationManager.cancel(NOTIFICATION_ID);
     }
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
-        removeNotification();
-        stopPlayers();
-        if(timer != null) {
+        mainHandler.removeCallbacksAndMessages(null);
+        if (timer != null) {
             timer.cancel();
         }
+        if (sessionRunning) {
+            sessionRunning = false;
+            ringer.restore();
+        }
+        sounds.stopAll();
+        removeNotification();
         saveData();
+        super.onDestroy();
     }
 
     private void setupWheel() {
-        List<String> data = new LinkedList<>();
-        for (int i = 1; i <= 90; i++) {
+        List<String> data = new ArrayList<>();
+        for (int i = 1; i <= MAX_MINUTES; i++) {
             data.add(String.valueOf(i));
         }
         wheelView.setItems(data);
-        wheelView.selectIndex(getTime());
-//        if (vipassanaMode.isChecked()) {
-//            wheelView.setEnabled(true);
-//        }
+        selectedIndex = Math.min(prefs.getTimeIndex(), MAX_MINUTES - 1);
+        wheelView.selectIndex(selectedIndex);
         wheelView.setOnWheelItemSelectedListener(new WheelView.OnWheelItemSelectedListener() {
             @Override
             public void onWheelItemChanged(WheelView wheelView, int position) {
-                saveData();
             }
 
             @Override
             public void onWheelItemSelected(WheelView wheelView, int position) {
                 selectedIndex = position;
-                if (vipassanaMode.isChecked()) {
+                if (vipassanaMode.isChecked() && position != VIPASSANA_INDEX) {
                     vipassanaMode.setChecked(false);
                 }
                 saveData();
@@ -456,31 +419,20 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     private void setupDays() {
-        days = new ArrayList<>();
-        dayLayout = (LinearLayout) findViewById(R.id.dayLayout);
+        dayLayout = findViewById(R.id.dayLayout);
+        streak = prefs.getStreak();
 
-        streak = getStreak();
-        Log.v("streak", ""+streak);
-        Log.v("lastday", ""+getLastDay());
-        Log.v("yesterday", "" + getYesterday());
-        Log.v("currentday", "" + getCurrentDay());
-
-        int streakRemain = streak % 7;
-        int dayStart = streak - streakRemain;
-
-        for (int i = dayStart; i < dayStart + 7; i++) {
-            SmoothCheckBox checkBox = new SmoothCheckBox(MainActivity.this);
-            checkBox.setText("" + (i + 1));
+        int dayStart = StreakCalculator.rowStart(streak);
+        int size = CompatUtils.dp2px(this, 30);
+        int margin = CompatUtils.dp2px(this, 6);
+        for (int i = dayStart; i < dayStart + StreakCalculator.DAYS_PER_ROW; i++) {
+            SmoothCheckBox checkBox = new SmoothCheckBox(this);
+            checkBox.setText(String.valueOf(i + 1));
             checkBox.setEnabled(false);
-            int a = CompatUtils.dp2px(MainActivity.this, 30);
-            int b = CompatUtils.dp2px(MainActivity.this, 6);
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(a, a);
-            params.setMargins(b, b, b, b);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
+            params.setMargins(margin, margin, margin, margin);
             checkBox.setLayoutParams(params);
-
-            if(i < streak) {
-                checkBox.setChecked(true);
-            }
+            checkBox.setChecked(i < streak);
             dayLayout.addView(checkBox);
             days.add(checkBox);
         }
@@ -489,24 +441,31 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     protected void onStart() {
         super.onStart();
-        Log.v("Last day ", getLastDay());
-        Log.v("Yester day ", getYesterday());
-        Log.v("current day ", getCurrentDay());
-
-        if(!getLastDay().equals(getYesterday()) && !getLastDay().equals(getCurrentDay()) && streak != 0) {
-            if(streak > 1) {
-                SweetAlertDialog pDialog = new SweetAlertDialog(MainActivity.this, SweetAlertDialog.ERROR_TYPE);
-                pDialog.setTitleText("Oh no!");
-                pDialog.setContentText("Your " + streak + " day streak is over!");
-                pDialog.setConfirmText("Ok");
-                pDialog.setCancelable(false);
-                pDialog.show();
-            }
-            streak = 0;
-            Log.v("Streak ", "Streak reset to 0");
-            updateDays();
-            saveData();
+        Calendar now = Calendar.getInstance();
+        if (StreakCalculator.isStreakBroken(prefs.getLastDay(), StreakCalculator.formatDay(now),
+                StreakCalculator.formatPreviousDay(now), streak)) {
+            breakStreak();
         }
+    }
+
+    /** Clears a streak that lapsed because a day was missed. */
+    private void breakStreak() {
+        if (streak > 1) {
+            SweetAlertDialog dialog = new SweetAlertDialog(this, SweetAlertDialog.ERROR_TYPE);
+            dialog.setTitleText(getString(R.string.streak_over_title));
+            dialog.setContentText(getString(R.string.streak_over_text, streak));
+            dialog.setConfirmText(getString(R.string.ok));
+            dialog.setCancelable(false);
+            dialog.show();
+        }
+        streak = 0;
+        prefs.setStreak(0);
+        for (SmoothCheckBox day : days) {
+            if (day.isChecked()) {
+                day.setChecked(false, true);
+            }
+        }
+        updateDays();
     }
 
     private void setInputFieldEnabled(boolean isEnabled) {
@@ -518,129 +477,46 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     private void saveData() {
-        Log.v("Streak: ", "" + streak);
-        SharedPreferences.Editor editor = getSharedPreferences(MY_PREF, MODE_PRIVATE).edit();
-        editor.putInt(TIME, wheelView.getSelectedPosition());
-        editor.putBoolean(VIPASSANA, vipassanaMode.isChecked());
-        editor.putBoolean(FIRST_TIME, firstTime);
-        editor.commit();
+        prefs.saveSettings(selectedIndex, vipassanaMode.isChecked(), firstTime);
     }
 
-    private void saveProgress() {
-        Log.v("Streak: ", "" + streak);
-        SharedPreferences.Editor editor = getSharedPreferences(MY_PREF, MODE_PRIVATE).edit();
-        SharedPreferences prefs = getSharedPreferences(MY_PREF, MODE_PRIVATE);
-        editor.putInt(STREAK, streak);
-        editor.putString(LAST_DAY, lastDay);
-        int longestStreak = prefs.getInt(LONGEST_STREAK, 0);
-        int totalTime = prefs.getInt(TOTAL_TIME, 0);
-        int sessionNum = prefs.getInt(SESSION_NUM, 1);
-
-        if(streak > longestStreak) {
-            editor.putInt(LONGEST_STREAK, streak);
-        }
-        editor.putInt(TOTAL_TIME, totalTime + selectedIndex + 1);
-        editor.putInt(AVERAGE_TIME, (totalTime + selectedIndex + 1) / sessionNum);
-        editor.putInt(SESSION_NUM, sessionNum + 1);
-        editor.commit();
-    }
-
-    private boolean getVipassanaSelected() {
-        SharedPreferences prefs = getSharedPreferences(MY_PREF, MODE_PRIVATE);
-        return prefs.getBoolean(VIPASSANA, false);
-    }
-
-    private int getTime() {
-        SharedPreferences prefs = getSharedPreferences(MY_PREF, MODE_PRIVATE);
-        return prefs.getInt(TIME, 14);
-    }
-
-    private int getStreak() {
-        SharedPreferences prefs = getSharedPreferences(MY_PREF, MODE_PRIVATE);
-//        return 6;
-        return prefs.getInt(STREAK, 0);
-    }
-
-    private String getLastDay() {
-        SharedPreferences prefs = getSharedPreferences(MY_PREF, MODE_PRIVATE);
-//        return "11/11/2016";
-        Log.v("LAST DAY", prefs.getString(LAST_DAY, "nothing"));
-        Log.v("STREAK", prefs.getInt(STREAK, 0) + "");
-        return prefs.getString(LAST_DAY, "");
-    }
-
+    /** Fades "Take a deep breath" in and out at the start of a session. */
     private void showSnackBar() {
         bigText.setVisibility(View.VISIBLE);
-        AnimationSet set1 = new AnimationSet(true);
-        final AnimationSet set2 = new AnimationSet(true);
-        final AlphaAnimation ani1 = new AlphaAnimation(0.0f, 1.0f);
-        final AlphaAnimation ani2 = new AlphaAnimation(1.0f, 0.0f);
-        final ScaleAnimation anis1 = new ScaleAnimation(0.5f, 1.0f, 0.5f, 1.0f, Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
-        final ScaleAnimation anis2 = new ScaleAnimation(1.0f, 0.5f, 1.0f, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
-        ani1.setDuration(5000);
-        ani2.setDuration(5000);
-        anis1.setDuration(5000);
-        anis2.setDuration(5000);
+        AnimationSet fadeIn = new AnimationSet(true);
+        final AnimationSet fadeOut = new AnimationSet(true);
+        fadeIn.addAnimation(new AlphaAnimation(0.0f, 1.0f));
+        fadeIn.addAnimation(new ScaleAnimation(0.5f, 1.0f, 0.5f, 1.0f,
+                Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f));
+        fadeOut.addAnimation(new AlphaAnimation(1.0f, 0.0f));
+        fadeOut.addAnimation(new ScaleAnimation(1.0f, 0.5f, 1.0f, 0.5f,
+                Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f));
+        fadeIn.setDuration(5000);
+        fadeOut.setDuration(5000);
 
-        set1.addAnimation(ani1);
-        set1.addAnimation(anis1);
-
-        set2.addAnimation(ani2);
-        set2.addAnimation(anis2);
-
-        set1.setAnimationListener(new Animation.AnimationListener() {
+        fadeIn.setAnimationListener(new Animation.AnimationListener() {
             @Override
             public void onAnimationStart(Animation animation) {
-
             }
 
             @Override
             public void onAnimationEnd(Animation animation) {
-                Log.v("", "Animation start");
-                bigText.startAnimation(set2);
+                bigText.startAnimation(fadeOut);
                 bigText.setVisibility(View.INVISIBLE);
-
             }
 
             @Override
             public void onAnimationRepeat(Animation animation) {
-
             }
         });
-        bigText.startAnimation(set1);
+        bigText.startAnimation(fadeIn);
     }
 
-    private String getCurrentDay() {
-        Calendar cal = Calendar.getInstance();
-        SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
-//        return "12/11/2016";
-        return dateFormat.format(cal.getTime());
-    }
-
-    private String getYesterday() {
-        Calendar cal = Calendar.getInstance();
-        SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
-
-        cal.add(Calendar.DATE, -1);
-//        return "11/11/2016";
-        return dateFormat.format(cal.getTime());
-    }
-
-    private String getMinutesAndSeconds(long millis) {
-        return String.format("%02d:%02d",
-                TimeUnit.MILLISECONDS.toMinutes(millis),
-                TimeUnit.MILLISECONDS.toSeconds(millis) -
-                        TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(millis))
-        );
-    }
-
+    /** Relabels the day circles for the current row of seven. */
     private void updateDays() {
-        int streakRemain = streak % 7;
-        int dayStart = streak - streakRemain;
-
-        for (int i = dayStart; i < dayStart + 7; i++) {
-            SmoothCheckBox checkBox = days.get(i%7);
-            checkBox.setText("" + (i + 1));
+        int dayStart = StreakCalculator.rowStart(streak);
+        for (int i = dayStart; i < dayStart + StreakCalculator.DAYS_PER_ROW; i++) {
+            days.get(i % StreakCalculator.DAYS_PER_ROW).setText(String.valueOf(i + 1));
         }
     }
 
@@ -650,105 +526,93 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         saveData();
     }
 
-    private class myCountDownTimer extends CountDownTimer {
+    /** Looks up an optional raw resource by name, returning 0 when it isn't bundled. */
+    @SuppressWarnings("DiscouragedApi")
+    private int findRawResource(String name) {
+        return getResources().getIdentifier(name, "raw", getPackageName());
+    }
 
-        public myCountDownTimer(long millisInFuture, long countDownInterval) {
-            super(millisInFuture, countDownInterval);
-            vipassanaEndPlayer = null;
+    private void finishSession() {
+        sessionRunning = false;
+        if (!vipassanaEndStarted) {
+            sounds.play(R.raw.bell1, END_BELL_STRIKES);
+        }
+        playPauseView.toggle();
+        restoreAfterSession();
+
+        Calendar now = Calendar.getInstance();
+        String today = StreakCalculator.formatDay(now);
+        String yesterday = StreakCalculator.formatPreviousDay(now);
+        String lastDay = prefs.getLastDay();
+        if (StreakCalculator.isStreakBroken(lastDay, today, yesterday, streak)) {
+            // The app stayed open across a missed day, so onStart never caught it.
+            breakStreak();
+        }
+        int newStreak = StreakCalculator.streakAfterSession(lastDay, today, yesterday, streak);
+        if (newStreak != streak) {
+            streak = newStreak;
+            onStreakExtended();
+        }
+        prefs.recordSession(selectedIndex + 1, streak, today);
+        saveData();
+    }
+
+    private void onStreakExtended() {
+        int dayInRow = streak % StreakCalculator.DAYS_PER_ROW;
+        if (dayInRow != 0) {
+            days.get(dayInRow - 1).setChecked(true, true);
+            return;
+        }
+        // A full row of seven: celebrate, then clear the row for the next week.
+        days.get(StreakCalculator.DAYS_PER_ROW - 1).setChecked(true, true);
+        final SweetAlertDialog dialog = new SweetAlertDialog(this, SweetAlertDialog.SUCCESS_TYPE);
+        dialog.setTitleText(getString(R.string.streak_milestone_title, streak));
+        dialog.setConfirmText(getString(R.string.streak_milestone_confirm));
+        dialog.setCancelable(false);
+        dialog.setConfirmClickListener(sweetAlertDialog -> {
+            dialog.dismissWithAnimation();
+            for (int i = 0; i < days.size(); i++) {
+                final SmoothCheckBox day = days.get(i);
+                mainHandler.postDelayed(() -> day.setChecked(false, true), 100L * (i + 1));
+            }
+        });
+        dialog.show();
+        updateDays();
+    }
+
+    private class SessionTimer extends CountDownTimer {
+
+        SessionTimer(long millisInFuture) {
+            super(millisInFuture, 1000);
         }
 
         @Override
         public void onTick(long millisUntilFinished) {
-            int timeLeftInMinutes = (int) Math.floor(millisUntilFinished / 60000);
-            wheelView.smoothSelectIndex(timeLeftInMinutes);
-            if(vipassanaEndPlayer == null && millisUntilFinished < 809400 && vipassanaMode.isChecked()) {
-                vipassanaEndPlayer = MediaPlayer.create(MainActivity.this, R.raw.vipassanaend);
-                vipassanaEndPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-                    @Override
-                    public void onCompletion(MediaPlayer mp) {
-                        vipassanaEndPlayer.release();
-                        vipassanaEndPlayer = null;
-                    }
-                });
-                vipassanaEndPlayer.start();
+            wheelView.smoothSelectIndex((int) (millisUntilFinished / MINUTE_MS));
+
+            if (vipassanaMode.isChecked() && vipassanaEndSound != 0 && !vipassanaEndStarted
+                    && millisUntilFinished < VIPASSANA_END_LEAD_MS) {
+                vipassanaEndStarted = sounds.play(vipassanaEndSound, 1);
             }
 
-
-            int interval = getInterval() * 60000;
-            if(interval != 0 && millisUntilFinished > interval && millisUntilFinished % interval < 1000) {
-                bell1Player = MediaPlayer.create(MainActivity.this, R.raw.bell1);
-                bell1Player.start();
-                Log.v("BELL", "INTERVAL BELL PLAYED at " + interval);
+            if (IntervalBells.shouldRing(sessionMs, lastRemainingMs, millisUntilFinished,
+                    prefs.getIntervalMinutes())) {
+                sounds.play(R.raw.bell1, 1);
             }
+            lastRemainingMs = millisUntilFinished;
 
-            mBuilder.setContentText("Time left: " + getMinutesAndSeconds(millisUntilFinished));
-            int timeInMillis = (selectedIndex + 1) * 60000;
-            mBuilder.setProgress(timeInMillis, timeInMillis - (int) millisUntilFinished, false);
-            Notification notification = mBuilder.build();
-            notificationManager.notify(001, notification);
+            if (notificationBuilder != null) {
+                notificationBuilder.setContentText(getString(R.string.notification_time_left,
+                        TimerFormatter.formatMillis(millisUntilFinished)));
+                int total = (int) sessionMs;
+                notificationBuilder.setProgress(total, total - (int) millisUntilFinished, false);
+                postNotification();
+            }
         }
 
         @Override
         public void onFinish() {
-            if(!vipassanaMode.isChecked()) {
-                bell1Player = MediaPlayer.create(MainActivity.this, R.raw.bell1);
-                bell1Player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-                    int maxCount = 2;
-
-                    @Override
-                    public void onCompletion(MediaPlayer mediaPlayer) {
-                        if (count < maxCount) {
-                            count++;
-                            mediaPlayer.seekTo(0);
-                            mediaPlayer.start();
-                        } else {
-                            mediaPlayer.release();
-                            mediaPlayer = null;
-                            count = 0;
-                        }
-                    }
-                });
-                bell1Player.start();
-            }
-            playPauseView.toggle();
-            setScreenDim(brightness);
-            audio.setRingerMode(ringer);
-            setInputFieldEnabled(true);
-            wheelView.smoothSelectIndex(selectedIndex);
-            if(!getLastDay().equals(getCurrentDay()) && getLastDay().equals(getYesterday()) || streak == 0) {
-                streak++;
-                if(streak % 7 == 0) {
-                    days.get(6).setChecked(true, true);
-                    final SweetAlertDialog pDialog = new SweetAlertDialog(MainActivity.this, SweetAlertDialog.SUCCESS_TYPE);
-                    pDialog.setTitleText("You're on a " + streak + " day streak!");
-                    pDialog.setConfirmText("I'm awesome");
-                    pDialog.setCancelable(false);
-                    pDialog.setConfirmClickListener(new SweetAlertDialog.OnSweetClickListener() {
-                        @Override
-                        public void onClick(SweetAlertDialog sweetAlertDialog) {
-                            pDialog.dismissWithAnimation();
-                            Handler handler = new Handler();
-                            for (int i = 1; i <= days.size(); i++) {
-                                final int finalI = i;
-                                handler.postDelayed(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        days.get(finalI - 1).setChecked(false, true);
-                                    }
-                                }, 100 * i);
-                            }
-                        }
-                    });
-                    pDialog.show();
-                    updateDays();
-                } else {
-                    days.get(streak % 7 - 1).setChecked(true, true);
-                }
-            }
-            lastDay = getCurrentDay();
-            removeNotification();
-            saveData();
-            saveProgress();
+            finishSession();
         }
     }
 }

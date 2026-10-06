@@ -15,7 +15,7 @@
         android:layout_height="wrap_content"
         android:textColor="@color/float_color"
         android:fontFamily="sans-serif-condensed"
-        android:textSize="20dp"
+        android:textSize="20sp"
         android:layout_marginBottom="5dp"
         android:text="TEN STAGES OF MEDITATION"/>
 
@@ -25,7 +25,7 @@
         <!--android:textColor="@color/white"-->
         <!--android:gravity="center_horizontal"-->
         <!--android:layout_marginBottom="20dp"-->
-        <!--android:textSize="20dp"-->
+        <!--android:textSize="20sp"-->
         <!--android:text="A map to help you figure out where you are and how best to continue."/>-->
 
     <TextView

@@ -1,231 +1,102 @@
 package ragone.io.quietmind;
 
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.graphics.Color;
-import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
-import androidx.fragment.app.FragmentStatePagerAdapter;
-import androidx.viewpager.widget.PagerAdapter;
 import android.util.SparseArray;
-import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
 
-import java.util.Random;
+import androidx.annotation.NonNull;
+import androidx.viewpager.widget.PagerAdapter;
 
-import ragone.io.quietmind.fragment.MyFragment;
-
-/**
- * Created by ragone on 9/03/16.
- */
+/** The intro, the ten stages of meditation and the four milestones, in reading order. */
 public class MyPagerAdapter extends PagerAdapter {
 
-    private static final String MY_PREF = "my_prefs";
-    private static final String INTRO = "intro";
-    private static final String STAGE1 = "stage1";
-    private static final String STAGE2 = "stage2";
-    private static final String STAGE3 = "stage3";
-    private static final String STAGE4 = "stage4";
-    private static final String STAGE5 = "stage5";
-    private static final String STAGE6 = "stage6";
-    private static final String STAGE7 = "stage7";
-    private static final String STAGE8 = "stage8";
-    private static final String STAGE9 = "stage9";
-    private static final String STAGE10 = "stage10";
+    private static final int NO_STAGE = 0;
 
+    private static final class Page {
+        final int layout;
+        /** Stage number 1-10, or NO_STAGE for pages without a "DONE" checkbox. */
+        final int stage;
+        /** Container the checkbox is appended to. */
+        final int container;
 
-    private final Random random = new Random();
-    private final SparseArray<View> mHolderArray = new SparseArray<>();
-    private Context context;
+        Page(int layout, int stage, int container) {
+            this.layout = layout;
+            this.stage = stage;
+            this.container = container;
+        }
+
+        static Page plain(int layout) {
+            return new Page(layout, NO_STAGE, View.NO_ID);
+        }
+    }
+
+    private static final Page[] PAGES = {
+            Page.plain(R.layout.intro),
+            new Page(R.layout.stage1, 1, R.id.layout1),
+            new Page(R.layout.stage2, 2, R.id.layout2),
+            new Page(R.layout.stage3, 3, R.id.layout3),
+            Page.plain(R.layout.milestone1),
+            new Page(R.layout.stage4, 4, R.id.layout4),
+            new Page(R.layout.stage5, 5, R.id.layout5),
+            new Page(R.layout.stage6, 6, R.id.layout6),
+            Page.plain(R.layout.milestone2),
+            new Page(R.layout.stage7, 7, R.id.layout7),
+            Page.plain(R.layout.milestone3),
+            new Page(R.layout.stage8, 8, R.id.layout8),
+            new Page(R.layout.stage9, 9, R.id.layout9),
+            new Page(R.layout.stage10, 10, R.id.layout10),
+            Page.plain(R.layout.milestone4),
+    };
+
+    private final SparseArray<View> pages = new SparseArray<>();
+    private final Context context;
+    private final Prefs prefs;
 
     public MyPagerAdapter(Context context) {
         this.context = context;
+        this.prefs = new Prefs(context);
     }
 
-    @Override public int getCount() {
-        return 15;
+    @Override
+    public int getCount() {
+        return PAGES.length;
     }
 
-    @Override public boolean isViewFromObject(View view, Object object) {
+    @Override
+    public boolean isViewFromObject(@NonNull View view, @NonNull Object object) {
         return view == object;
     }
 
-    @Override public void destroyItem(ViewGroup view, int position, Object object) {
-        view.removeView(mHolderArray.get(position));
+    @Override
+    public void destroyItem(@NonNull ViewGroup container, int position, @NonNull Object object) {
+        container.removeView((View) object);
+        pages.remove(position);
     }
 
-    @Override public Object instantiateItem(ViewGroup view, int position) {
-        LayoutInflater inflater = (LayoutInflater)context.getSystemService
-                (Context.LAYOUT_INFLATER_SERVICE);
-        ScrollView theInflatedView = new ScrollView(view.getContext());
-        LinearLayout linearLayout = new LinearLayout(view.getContext());
+    @NonNull
+    @Override
+    public Object instantiateItem(@NonNull ViewGroup container, int position) {
+        Page page = PAGES[position];
+        View view = LayoutInflater.from(context).inflate(page.layout, container, false);
 
-
-        SmoothCheckBox checkBox = new SmoothCheckBox(view.getContext());
-        checkBox.setText("DONE");
-        checkBox.setEnabled(true);
-        int a = CompatUtils.dp2px(view.getContext(), 60);
-        int b = CompatUtils.dp2px(view.getContext(), 20);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(a, a);
-        params.setMargins(0, b, 0, 0);
-        checkBox.setLayoutParams(params);
-        final SharedPreferences.Editor editor = context.getSharedPreferences(MY_PREF, context.MODE_PRIVATE).edit();
-        SharedPreferences prefs = context.getSharedPreferences(MY_PREF, context.MODE_PRIVATE);
-
-
-        switch (position) {
-            case 0:
-                theInflatedView = (ScrollView) inflater.inflate(R.layout.intro, null);
-                break;
-            case 1:
-                theInflatedView = (ScrollView) inflater.inflate(R.layout.stage1, null);
-                checkBox.setOnCheckedChangeListener(new SmoothCheckBox.OnCheckedChangeListener() {
-                    @Override
-                    public void onCheckedChanged(SmoothCheckBox checkBox, boolean isChecked) {
-                        editor.putBoolean(STAGE1, checkBox.isChecked());
-                        editor.commit();
-
-                    }
-                });
-                checkBox.setChecked(prefs.getBoolean(STAGE1, false), false);
-                linearLayout = (LinearLayout) theInflatedView.findViewById(R.id.layout1);
-                break;
-            case 2:
-                theInflatedView = (ScrollView)inflater.inflate(R.layout.stage2, null);
-                checkBox.setOnCheckedChangeListener(new SmoothCheckBox.OnCheckedChangeListener() {
-                    @Override
-                    public void onCheckedChanged(SmoothCheckBox checkBox, boolean isChecked) {
-                        editor.putBoolean(STAGE2, checkBox.isChecked());
-                        editor.commit();
-                    }
-                });
-                checkBox.setChecked(prefs.getBoolean(STAGE2, false), false);
-                linearLayout = (LinearLayout) theInflatedView.findViewById(R.id.layout2);
-                break;
-            case 3:
-                theInflatedView = (ScrollView)inflater.inflate(R.layout.stage3, null);
-                checkBox.setOnCheckedChangeListener(new SmoothCheckBox.OnCheckedChangeListener() {
-                    @Override
-                    public void onCheckedChanged(SmoothCheckBox checkBox, boolean isChecked) {
-                        editor.putBoolean(STAGE3, checkBox.isChecked());
-                        editor.commit();
-                    }
-                });
-                checkBox.setChecked(prefs.getBoolean(STAGE3, false), false);
-                linearLayout = (LinearLayout) theInflatedView.findViewById(R.id.layout3);
-                break;
-            case 4:
-                theInflatedView = (ScrollView)inflater.inflate(R.layout.milestone1, null);
-                break;
-            case 5:
-                theInflatedView = (ScrollView)inflater.inflate(R.layout.stage4, null);
-                checkBox.setOnCheckedChangeListener(new SmoothCheckBox.OnCheckedChangeListener() {
-                    @Override
-                    public void onCheckedChanged(SmoothCheckBox checkBox, boolean isChecked) {
-                        editor.putBoolean(STAGE4, checkBox.isChecked());
-                        editor.commit();
-                    }
-                });
-                checkBox.setChecked(prefs.getBoolean(STAGE4, false), false);
-                linearLayout = (LinearLayout) theInflatedView.findViewById(R.id.layout4);
-                break;
-            case 6:
-                theInflatedView = (ScrollView)inflater.inflate(R.layout.stage5, null);
-                checkBox.setOnCheckedChangeListener(new SmoothCheckBox.OnCheckedChangeListener() {
-                    @Override
-                    public void onCheckedChanged(SmoothCheckBox checkBox, boolean isChecked) {
-                        editor.putBoolean(STAGE5, checkBox.isChecked());
-                        editor.commit();
-                    }
-                });
-                checkBox.setChecked(prefs.getBoolean(STAGE5, false), false);
-                linearLayout = (LinearLayout) theInflatedView.findViewById(R.id.layout5);
-                break;
-            case 7:
-                theInflatedView = (ScrollView)inflater.inflate(R.layout.stage6, null);
-                checkBox.setOnCheckedChangeListener(new SmoothCheckBox.OnCheckedChangeListener() {
-                    @Override
-                    public void onCheckedChanged(SmoothCheckBox checkBox, boolean isChecked) {
-                        editor.putBoolean(STAGE6, checkBox.isChecked());
-                        editor.commit();
-                    }
-                });
-                checkBox.setChecked(prefs.getBoolean(STAGE6, false), false);
-                linearLayout = (LinearLayout) theInflatedView.findViewById(R.id.layout6);
-                break;
-            case 8:
-                theInflatedView = (ScrollView)inflater.inflate(R.layout.milestone2, null);
-                break;
-            case 9:
-                theInflatedView = (ScrollView)inflater.inflate(R.layout.stage7, null);
-                checkBox.setOnCheckedChangeListener(new SmoothCheckBox.OnCheckedChangeListener() {
-                    @Override
-                    public void onCheckedChanged(SmoothCheckBox checkBox, boolean isChecked) {
-                        editor.putBoolean(STAGE7, checkBox.isChecked());
-                        editor.commit();
-                    }
-                });
-                checkBox.setChecked(prefs.getBoolean(STAGE7, false), false);
-                linearLayout = (LinearLayout) theInflatedView.findViewById(R.id.layout7);
-                break;
-            case 10:
-                theInflatedView = (ScrollView)inflater.inflate(R.layout.milestone3, null);
-                break;
-            case 11:
-                theInflatedView =(ScrollView) inflater.inflate(R.layout.stage8, null);
-                checkBox.setOnCheckedChangeListener(new SmoothCheckBox.OnCheckedChangeListener() {
-                    @Override
-                    public void onCheckedChanged(SmoothCheckBox checkBox, boolean isChecked) {
-                        editor.putBoolean(STAGE8, checkBox.isChecked());
-                        editor.commit();
-                    }
-                });
-                checkBox.setChecked(prefs.getBoolean(STAGE8, false), false);
-                linearLayout = (LinearLayout) theInflatedView.findViewById(R.id.layout8);
-                break;
-            case 12:
-                theInflatedView = (ScrollView)inflater.inflate(R.layout.stage9, null);
-                checkBox.setOnCheckedChangeListener(new SmoothCheckBox.OnCheckedChangeListener() {
-                    @Override
-                    public void onCheckedChanged(SmoothCheckBox checkBox, boolean isChecked) {
-                        editor.putBoolean(STAGE9, checkBox.isChecked());
-                        editor.commit();
-                    }
-                });
-                checkBox.setChecked(prefs.getBoolean(STAGE9, false), false);
-                linearLayout = (LinearLayout) theInflatedView.findViewById(R.id.layout9);
-                break;
-            case 13:
-                theInflatedView = (ScrollView)inflater.inflate(R.layout.stage10, null);
-                checkBox.setOnCheckedChangeListener(new SmoothCheckBox.OnCheckedChangeListener() {
-                    @Override
-                    public void onCheckedChanged(SmoothCheckBox checkBox, boolean isChecked) {
-                        editor.putBoolean(STAGE10, checkBox.isChecked());
-                        editor.commit();
-                    }
-                });
-                checkBox.setChecked(prefs.getBoolean(STAGE10, false), false);
-                linearLayout = (LinearLayout) theInflatedView.findViewById(R.id.layout10);
-                break;
-            case 14:
-                theInflatedView = (ScrollView)inflater.inflate(R.layout.milestone4, null);
-                break;
+        if (page.stage != NO_STAGE) {
+            final int stage = page.stage;
+            SmoothCheckBox checkBox = new SmoothCheckBox(context);
+            checkBox.setText("DONE");
+            int size = CompatUtils.dp2px(context, 60);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
+            params.setMargins(0, CompatUtils.dp2px(context, 20), 0, 0);
+            checkBox.setLayoutParams(params);
+            checkBox.setChecked(prefs.isStageDone(stage), false);
+            checkBox.setOnCheckedChangeListener((box, isChecked) -> prefs.setStageDone(stage, isChecked));
+            ((LinearLayout) view.findViewById(page.container)).addView(checkBox);
         }
-        editor.commit();
-        linearLayout.addView(checkBox);
 
-        view.addView(theInflatedView, ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT);
-        mHolderArray.put(position, theInflatedView);
-        return theInflatedView;
-    }
-
-    @Override public int getItemPosition(Object object) {
-        return POSITION_NONE;
+        container.addView(view);
+        pages.put(position, view);
+        return view;
     }
 }
