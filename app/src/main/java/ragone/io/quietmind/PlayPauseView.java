@@ -11,6 +11,8 @@ import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import androidx.core.content.ContextCompat;
+
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import android.util.AttributeSet;
 import android.util.Property;
@@ -53,15 +55,15 @@ public class PlayPauseView extends FloatingActionButton {
     public PlayPauseView(Context context, AttributeSet attrs) {
         super(context, attrs);
         setWillNotDraw(false);
-        mBackgroundColor = getResources().getColor(R.color.colorPrimaryDark);
+        mBackgroundColor = ContextCompat.getColor(context, R.color.colorPrimaryDark);
         mPaint.setAntiAlias(true);
         mPaint.setStyle(Paint.Style.FILL);
         mDrawable = new PlayPauseDrawable(context);
 
         mDrawable.setCallback(this);
 
-        mPauseBackgroundColor = getResources().getColor(R.color.colorPrimaryDark);
-        mPlayBackgroundColor = getResources().getColor(R.color.colorPrimaryDark);
+        mPauseBackgroundColor = ContextCompat.getColor(context, R.color.colorPrimaryDark);
+        mPlayBackgroundColor = ContextCompat.getColor(context, R.color.colorPrimaryDark);
     }
 
     @Override
