@@ -33,7 +33,6 @@ android {
         warningsAsErrors false
         checkDependencies false
         textReport true
-        textOutput file('stdout')
     }
 
     testOptions {
