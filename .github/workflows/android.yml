@@ -81,8 +81,7 @@ jobs:
           disable-animations: true
           script: |
             ./gradlew connectedDebugAndroidTest
-            adb shell am start -W -n ragone.io.quietmind/.MainActivity && sleep 4 && adb exec-out screencap -p > main.png
-            python3 -c "import base64,zlib;d=open('main.png','rb').read();print('SCREENSHOT_BEGIN');print(base64.b64encode(zlib.compress(d,9)).decode());print('SCREENSHOT_END')" | fold -w 4000
+            .github/scripts/screenshot.sh
 
       - name: Upload device test reports
         if: always()
