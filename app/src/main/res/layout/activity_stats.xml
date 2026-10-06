@@ -6,6 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
+    app:statusBarBackground="@color/colorPrimaryDark"
     tools:context="ragone.io.quietmind.StatsActivity">
 
     <include layout="@layout/content_stats"/>

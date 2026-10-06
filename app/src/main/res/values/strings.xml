@@ -16,7 +16,7 @@
     <string name="interval_minutes">%d min.</string>
     <string name="set">Set</string>
     <string name="cancel">Cancel</string>
-    <string name="ok">Ok</string>
+    <string name="ok">OK</string>
 
     <string name="notification_channel_name">Meditation session</string>
     <string name="notification_channel_description">Shows the time left in the current session</string>
@@ -24,8 +24,14 @@
     <string name="notification_time_left">Time left: %s</string>
 
     <string name="streak_over_title">Oh no!</string>
-    <string name="streak_over_text">Your %d day streak is over!</string>
-    <string name="streak_milestone_title">You\'re on a %d day streak!</string>
+    <plurals name="streak_over_text">
+        <item quantity="one">Your %d day streak is over!</item>
+        <item quantity="other">Your %d day streak is over!</item>
+    </plurals>
+    <plurals name="streak_milestone_title">
+        <item quantity="one">You\'re on a %d day streak!</item>
+        <item quantity="other">You\'re on a %d day streak!</item>
+    </plurals>
     <string name="streak_milestone_confirm">I\'m awesome</string>
 
     <string name="dnd_title">Silence your phone?</string>

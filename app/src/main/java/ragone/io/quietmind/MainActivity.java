@@ -280,6 +280,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     private void openDndSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            requestStartSession();
+            return;
+        }
         try {
             startActivity(new Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS));
         } catch (ActivityNotFoundException e) {
@@ -453,7 +457,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (streak > 1) {
             SweetAlertDialog dialog = new SweetAlertDialog(this, SweetAlertDialog.ERROR_TYPE);
             dialog.setTitleText(getString(R.string.streak_over_title));
-            dialog.setContentText(getString(R.string.streak_over_text, streak));
+            dialog.setContentText(getResources().getQuantityString(R.plurals.streak_over_text, streak, streak));
             dialog.setConfirmText(getString(R.string.ok));
             dialog.setCancelable(false);
             dialog.show();
@@ -566,7 +570,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         // A full row of seven: celebrate, then clear the row for the next week.
         days.get(StreakCalculator.DAYS_PER_ROW - 1).setChecked(true, true);
         final SweetAlertDialog dialog = new SweetAlertDialog(this, SweetAlertDialog.SUCCESS_TYPE);
-        dialog.setTitleText(getString(R.string.streak_milestone_title, streak));
+        dialog.setTitleText(getResources().getQuantityString(R.plurals.streak_milestone_title, streak, streak));
         dialog.setConfirmText(getString(R.string.streak_milestone_confirm));
         dialog.setCancelable(false);
         dialog.setConfirmClickListener(sweetAlertDialog -> {

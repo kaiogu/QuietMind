@@ -8,7 +8,6 @@ import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
-import android.os.Build;
 import android.util.Log;
 
 import com.github.amlcurran.showcaseview.MaterialShowcaseDrawer;
@@ -79,11 +78,7 @@ public class MyDrawer extends MaterialShowcaseDrawer {
         }
 
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            bufferCanvas.drawRoundRect(left, top, right, bottom, 200, 200, eraserPaint);
-        } else {
-            bufferCanvas.drawRect(left, top, right, bottom, eraserPaint);
-        }
+        bufferCanvas.drawRoundRect(left, top, right, bottom, 200, 200, eraserPaint);
     }
 
     @Override

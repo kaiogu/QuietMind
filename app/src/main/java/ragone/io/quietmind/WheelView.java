@@ -114,7 +114,6 @@ public class WheelView extends View {
                 int index = indexAt(offset + e.getX() - getWidth() / 2f);
                 userScroll = true;
                 scrollToIndex(index);
-                performClick();
                 return true;
             }
         });
@@ -271,7 +270,9 @@ public class WheelView extends View {
                     } else {
                         scrollToIndex(indexAt(offset));
                     }
-                } else if (!tapped) {
+                } else if (tapped) {
+                    performClick();
+                } else {
                     scrollToIndex(indexAt(offset));
                 }
                 stopDragging();
