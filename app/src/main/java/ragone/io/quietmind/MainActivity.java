@@ -3,6 +3,7 @@ package ragone.io.quietmind;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -12,15 +13,16 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Looper;
-import android.support.design.widget.CoordinatorLayout;
-import android.support.v4.app.NotificationCompat;
-import android.support.v7.app.AlertDialog;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.SwitchCompat;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.core.app.NotificationCompat;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -54,6 +56,7 @@ import cn.pedant.SweetAlert.SweetAlertDialog;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
+    private static final String NOTIFICATION_CHANNEL = "meditation";
     private static final String INTERVAL_PREF = "interval";
     private static final String MY_PREF = "my_prefs";
     private static final String VIPASSANA = "vipassana";
@@ -393,10 +396,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         this,
                         1,
                         intent,
-                        PendingIntent.FLAG_UPDATE_CURRENT
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
                 );
+        notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            notificationManager.createNotificationChannel(new NotificationChannel(
+                    NOTIFICATION_CHANNEL, "Meditation", NotificationManager.IMPORTANCE_LOW));
+        }
         mBuilder =
-                new NotificationCompat.Builder(this)
+                new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL)
                         .setSmallIcon(R.drawable.notification_icon)
                         .setContentTitle("Meditation in progress")
                         .setContentText("Time left: " + wheelView.getSelectedPosition() + 1)
@@ -406,7 +414,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         .setPriority(Notification.PRIORITY_HIGH)
                         .setContentIntent(resultPendingIntent);
         Notification notification = mBuilder.build();
-        notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         notificationManager.notify(001, notification);
     }
 
