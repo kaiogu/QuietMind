@@ -84,7 +84,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private long sessionMs;
     private long lastRemainingMs;
     private boolean vipassanaEndStarted;
-    /** Optional raw resources for the Vipassanā chants; 0 when they aren't bundled. */
+    /** Optional raw resources (see README); 0 when they aren't bundled. */
+    private int startBellSound;
+    private int endBellSound;
     private int vipassanaStartSound;
     private int vipassanaEndSound;
 
@@ -107,6 +109,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         notificationPermissionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(), granted -> startSession());
         createNotificationChannel();
+        startBellSound = findRawResource("bell2");
+        endBellSound = findRawResource("bell1");
         vipassanaStartSound = findRawResource("vipassanastart");
         vipassanaEndSound = findRawResource("vipassanaend");
         firstTime = prefs.isFirstTime();
@@ -316,7 +320,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         boolean chantPlayed = vipassanaMode.isChecked() && vipassanaStartSound != 0
                 && sounds.play(vipassanaStartSound, 1);
         if (!chantPlayed) {
-            sounds.play(R.raw.bell2, 1);
+            playBell(startBellSound, 1);
         }
         setupNotification();
         timer = new SessionTimer(sessionMs).start();
@@ -530,6 +534,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         saveData();
     }
 
+    /**
+     * Plays a bundled bell, or the phone's default notification sound when no bell recording
+     * is bundled, so a session always has an audible start and end.
+     */
+    private void playBell(int sound, int times) {
+        if (sound == 0 || !sounds.play(sound, times)) {
+            sounds.play(Settings.System.DEFAULT_NOTIFICATION_URI, times);
+        }
+    }
+
     /** Looks up an optional raw resource by name, returning 0 when it isn't bundled. */
     @SuppressWarnings("DiscouragedApi")
     private int findRawResource(String name) {
@@ -539,7 +553,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private void finishSession() {
         sessionRunning = false;
         if (!vipassanaEndStarted) {
-            sounds.play(R.raw.bell1, END_BELL_STRIKES);
+            playBell(endBellSound, END_BELL_STRIKES);
         }
         playPauseView.toggle();
         restoreAfterSession();
@@ -601,7 +615,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
             if (IntervalBells.shouldRing(sessionMs, lastRemainingMs, millisUntilFinished,
                     prefs.getIntervalMinutes())) {
-                sounds.play(R.raw.bell1, 1);
+                playBell(endBellSound, 1);
             }
             lastRemainingMs = millisUntilFinished;
 

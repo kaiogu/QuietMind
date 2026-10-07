@@ -19,10 +19,17 @@ CI runs all three on every push (`.github/workflows/android.yml`).
 
 ## Sounds
 
-`app/src/main/res/raw/bell1.ogg` (interval and closing bell) and `bell2.ogg` (opening bell) are
-synthesized by `tools/generate_bells.py`.
+No audio is distributed with this repository. The original app's recordings were never published
+here, and their licensing is unknown. The app looks for these optional files in
+`app/src/main/res/raw/` (any format Android plays, for example `.ogg` or `.mp3`):
 
-Vipassanā mode can play S. N. Goenka's opening and closing chants. The recordings are not
-distributed with this repository. To include them, add `vipassanastart` and `vipassanaend` audio
-files (for example `.mp3` or `.ogg`) to `app/src/main/res/raw/`. The closing chant starts 13 min
-29.4 s before the end of the session. Without the recordings, Vipassanā mode uses the bells.
+| File | Played |
+|---|---|
+| `bell2` | when a session starts |
+| `bell1` | at each interval, and three times when a session ends |
+| `vipassanastart` | when a Vipassanā session starts, instead of `bell2` |
+| `vipassanaend` | starting 13 min 29.4 s before a Vipassanā session ends, instead of the closing bells |
+
+Only add recordings you have the right to distribute. S. N. Goenka's chanting is copyrighted;
+don't bundle it without written permission from the Vipassana Research Institute. When a bell
+is missing, the app plays the phone's default notification sound instead.

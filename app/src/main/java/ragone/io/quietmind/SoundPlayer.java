@@ -2,6 +2,7 @@ package ragone.io.quietmind;
 
 import android.content.Context;
 import android.media.MediaPlayer;
+import android.net.Uri;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -22,9 +23,17 @@ final class SoundPlayer {
 
     /** Plays {@code resId} {@code times} times back to back. Returns false if it can't be played. */
     boolean play(int resId, int times) {
-        MediaPlayer player = MediaPlayer.create(context, resId);
+        return start(MediaPlayer.create(context, resId), times, "resource " + resId);
+    }
+
+    /** Plays the sound at {@code uri} {@code times} times back to back. Returns false if it can't be played. */
+    boolean play(Uri uri, int times) {
+        return start(MediaPlayer.create(context, uri), times, String.valueOf(uri));
+    }
+
+    private boolean start(MediaPlayer player, int times, String source) {
         if (player == null) {
-            Log.w(TAG, "Could not create a player for resource " + resId);
+            Log.w(TAG, "Could not create a player for " + source);
             return false;
         }
         active.add(player);
