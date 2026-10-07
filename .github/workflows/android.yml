@@ -71,6 +71,16 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Install the emulator system image
+        # A corrupt download fails the emulator step outright, so fetch the image here with retries.
+        run: |
+          for attempt in 1 2 3; do
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "system-images;android-34;google_apis;x86_64" > /dev/null && exit 0
+            echo "System image download failed (attempt $attempt), retrying"
+            sleep 15
+          done
+          exit 1
+
       - name: Instrumented tests on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
